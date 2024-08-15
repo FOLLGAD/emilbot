@@ -66,38 +66,33 @@ async fn sync(
     initial_sync_token: Option<String>,
     session_file: &Path,
 ) -> anyhow::Result<()> {
-    println!("Launching a first sync to ignore past messages…");
-
-    // Enable room members lazy-loading, it will speed up the initial sync a lot
-    // with accounts in lots of rooms.
-    // See <https://spec.matrix.org/v1.6/client-server-api/#lazy-loading-room-members>.
+    // https://spec.matrix.org/v1.6/client-server-api/#lazy-loading-room-members
     let filter = FilterDefinition::with_lazy_loading();
-
     let mut sync_settings = SyncSettings::default().filter(filter.into());
 
-    // We restore the sync where we left.
-    // This is not necessary when not using `sync_once`. The other sync methods get
-    // the sync token from the store.
-    if let Some(sync_token) = initial_sync_token {
-        sync_settings = sync_settings.token(sync_token);
-    }
+    let ignore_past_messages = true;
+    if ignore_past_messages {
+        println!("Launching a first sync to ignore past messages…");
 
-    // Let's ignore messages before the program was launched.
-    // This is a loop in case the initial sync is longer than our timeout. The
-    // server should cache the response and it will ultimately take less time to
-    // receive.
-    loop {
-        match client.sync_once(sync_settings.clone()).await {
-            Ok(response) => {
-                // This is the last time we need to provide this token, the sync method after
-                // will handle it on its own.
-                sync_settings = sync_settings.token(response.next_batch.clone());
-                auth::persist_sync_token(session_file, response.next_batch).await?;
-                break;
-            }
-            Err(error) => {
-                println!("An error occurred during initial sync: {error}");
-                println!("Trying again…");
+        // This is not necessary when not using `sync_once`. The other sync methods get
+        // the sync token from the store.
+        if let Some(sync_token) = initial_sync_token {
+            sync_settings = sync_settings.token(sync_token);
+        }
+
+        loop {
+            match client.sync_once(sync_settings.clone()).await {
+                Ok(response) => {
+                    // This is the last time we need to provide this token, the sync method after
+                    // will handle it on its own.
+                    sync_settings = sync_settings.token(response.next_batch.clone());
+                    auth::persist_sync_token(session_file, response.next_batch).await?;
+                    break;
+                }
+                Err(error) => {
+                    println!("An error occurred during initial sync: {error}");
+                    println!("Trying again…");
+                }
             }
         }
     }
@@ -156,5 +151,5 @@ async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) {
         room.send(message).await.unwrap();
     }
 
-    println!("[{room_name}] {}: {}", event.sender, text_content.body)
+    info!("[{room_name}] {}: {}", event.sender, text_content.body)
 }
