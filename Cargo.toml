@@ -1,0 +1,23 @@
+[package]
+name = "oxybot"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow = "1.0.68"
+futures-util = { version = "0.3.26", default-features = false, features = [
+    "alloc",
+] }
+clap = { version = "4.0.15", features = ["derive"] }
+tracing-subscriber = {version="0.3.18",features=["env-filter"]}
+url = "2.5.0"
+matrix-sdk = "0.7.1"
+tokio = { version = "1.30.0", default-features = false, features = ["macros", "rt-multi-thread", "sync"] }
+dirs = "5.0.1"
+rand = "0.8.5"
+serde = "1.0.151"
+serde_json = "1.0.91"
+matrix-sdk-ui = "0.7.0"
+log = "0.4"
+env_logger = "0.10"
