@@ -1,3 +1,4 @@
+use futures_util::StreamExt;
 use log::info;
 use matrix_sdk::{
     config::SyncSettings,
@@ -6,9 +7,12 @@ use matrix_sdk::{
         events::room::message::{
             MessageType, OriginalSyncRoomMessageEvent, RoomMessageEventContent,
         },
+        room_id, user_id,
     },
     Client, Error, LoopCtrl, Room, RoomState,
 };
+use matrix_sdk_ui::timeline::{PaginationOptions, RoomExt};
+use rand::Rng;
 use std::path::Path;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, layer::SubscriberExt, EnvFilter};
@@ -52,8 +56,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Wait for the first sync response
     println!("Wait for the first sync");
-
-    client.sync_once(SyncSettings::default()).await?;
 
     sync(client, sync_token, &session_file)
         .await
@@ -119,6 +121,14 @@ async fn sync(
     Ok(())
 }
 
+fn get_fool_quote() -> &'static str {
+    let fool_quotes = [
+        "A fool thinks himself to be wise, but a wise man knows himself to be a fool.",
+        "The first principle is that you must not fool yourself and you are the easiest person to fool.",
+    ];
+    return &fool_quotes[rand::thread_rng().gen_range(0..fool_quotes.len())];
+}
+
 /// Handle room messages.
 async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) {
     // We only want to log text messages in joined rooms.
@@ -142,7 +152,15 @@ async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) {
     let client = room.client();
     let user_id = client.user_id().unwrap();
 
-    if text_content.body.starts_with("!oxy") && event.sender != user_id {
+    let sent_by_me = event.sender == user_id;
+
+    info!("[{room_name}] {}: {}", event.sender, text_content.body);
+
+    if sent_by_me {
+        return;
+    }
+
+    if text_content.body.starts_with("!oxy") {
         let user = client.get_profile(user_id).await.unwrap();
         let display_name = user.displayname.unwrap_or("Stranger".to_string());
 
@@ -151,5 +169,10 @@ async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) {
         room.send(message).await.unwrap();
     }
 
-    info!("[{room_name}] {}: {}", event.sender, text_content.body)
+    if event.sender
+        == user_id!("@signal_b0431c07-a3b8-44e2-8022-5fde36a5c4a5:beeper.local").to_owned()
+    {
+        let message = RoomMessageEventContent::text_plain(get_fool_quote().to_string());
+        room.send(message).await.unwrap();
+    }
 }

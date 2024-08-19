@@ -92,7 +92,7 @@ pub async fn login(data_dir: &Path, session_file: &Path) -> anyhow::Result<Clien
 
         match matrix_auth
             .login_username(&username, &password)
-            .initial_device_display_name("persist-session client")
+            .initial_device_display_name("oxybot client")
             .await
         {
             Ok(_) => {
