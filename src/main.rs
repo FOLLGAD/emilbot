@@ -2,6 +2,7 @@ use futures_util::StreamExt;
 use log::info;
 use matrix_sdk::{
     config::SyncSettings,
+    deserialized_responses::TimelineEvent,
     ruma::{
         api::client::filter::FilterDefinition,
         events::room::message::{
@@ -103,6 +104,34 @@ async fn sync(
 
     // Now that we've synced, let's attach a handler for incoming room messages.
     client.add_event_handler(on_room_message);
+
+    let room_id = room_id!("!EpdAGtDMTYZSR4VT5cG9:beeper.local");
+    let room = client.get_room(&room_id).unwrap();
+    let timeline = room.timeline().await;
+    timeline
+        .paginate_backwards(PaginationOptions::simple_request(10))
+        .await
+        .unwrap();
+    let (timeline_items, mut timeline_stream) = timeline.subscribe().await;
+
+    for event in timeline_items {
+        if let Some(e) = event.as_event() {
+            let c = e.content().to_owned();
+            if let Some(text) = c.as_message() {
+                let t = text.body();
+                println!("Event: {t:#?}");
+            }
+        }
+    }
+
+    // println!("Initial timeline items: {timeline_items:#?}");
+    tokio::spawn(async move {
+        while let Some(diff) = timeline_stream.next().await {
+            diff.map(move |event| event.as_event().unwrap().to_owned())
+                .map(move |e| e.content().to_owned())
+                .map(|e| println!("Event: {e:#?}"));
+        }
+    });
 
     // This loops until we kill the program or an error happens.
     client
